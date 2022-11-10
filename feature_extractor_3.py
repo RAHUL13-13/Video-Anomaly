@@ -60,31 +60,31 @@ def func():
         else:
             file = open(vid_address, 'r')
 
-        dataset = VideoFrameDataset('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dataset/Frames/', vid_address, num_segments=1, frames_per_segment=16, 
+        dataset = VideoFrameDataset('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dataset/Frames/', vid_address, num_segments=1, frames_per_segment=16,
                                     imagefile_template='frame_{:05d}.jpg', transform=None, test_mode=False)
-        
+
         # [[[][][]n frames][][]...1900]
         # print(dataset[0])
         # print(len(dataset), len(dataset[0][0]), len(dataset[0]))
         # frames = len(dataset[0][0]
 
         # len dataset[0,0] =8000
-        # num_iterations = 8000/16 
+        # num_iterations = 8000/16
         # start = 0
         # segments has 1 len
 
         num_iterations = len(dataset[0][0])//16
         start = 0
         while(start<=num_iterations):
-            segments = [[]] * 1    
+            segments = [[]] * 1
             # print(sample)
 
 
 
             # sample = dataset[0]
-            
-            
-            
+
+
+
             if ( start+chunk < num_iterations):
                 sample = dataset[0][0][16*start:16*(start+chunk)]
 
@@ -93,9 +93,9 @@ def func():
             start += chunk
 
             frames = sample
-            
-            
-            
+
+
+
             del dataset
             del sample
             gc.collect()
@@ -110,7 +110,7 @@ def func():
                 # 16 segment, 0-255 frames, 0 15 ok 16 31....240 255....0:16,  .....[240:]
                 if (cluster == (len(frames)//16)-1):
                     segment_i = frames[16 * cluster:]
-                
+
                 else:
                     segment_i = frames[16 * cluster: 16 * (cluster + 1)]
                 segment.append(segment_i)
@@ -151,19 +151,15 @@ def func():
                         #cv2_imshow(cv_img)
                         #print(cv_img.shape)
                         l.append(cv_img)
-                
+
                     t=tuple(l)
-                    
+
                     x = np.stack(t, axis = -1)
                     y= np.transpose(x, (3,2,1,0)) #tensor for one segment
                     lt.append(y)
                     #print('current shape',np.array(vid_tensors[0]).shape,np.array(vid_tensors[1]).shape)
                 vid_tensors[segment]=lt
                 #print(i,len(vid_tensors[i]))
-
-
-            del frameset
-            gc.collect()
 
 
 
@@ -179,7 +175,7 @@ def func():
             # print(len(data_segments))
 
 
-            
+
             del vid_tensors
             del segments
             gc.collect()
@@ -203,9 +199,9 @@ def func():
                 del op_d
                 del op_d_new
                 gc.collect()
-                
-                
-                
+
+
+
                 # print('writing line ',count)
             # print("json", vid_num)
             json_object=json.dumps(ls)
@@ -222,8 +218,8 @@ def func():
             os.path.join('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/sample_jsons', json_filename)
             with open('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/sample_jsons/'+json_filename, "w") as outfile:
                 outfile.write(json_object)
-            
-            
+
+
             outfile.close()
             del json_object
             gc.collect()
@@ -232,12 +228,10 @@ def func():
 
             path = '/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/'
             json_path = '/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/sample_jsons/'+json_filename
-            
+
             command =  'python '+path+'video_feature_extractor/extract.py --jsn='+json_path+' --type=3d --batch_size=1 --resnext101_model_path='+path+'resnext101.pth --vid_num='+str(vid_num)
             os.system(command)
-        
+
         print(vid_num)
 
 func()
-
-print(p.memory_info())
