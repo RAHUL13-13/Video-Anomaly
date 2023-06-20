@@ -1,9 +1,11 @@
 import os
 import numpy as np
 
-for vid_name in ['vid_622']:
-    for segment in os.listdir('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/tempoResNext/'+vid_name):
-        new = np.load('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/tempoResNext/'+vid_name+'/'+segment)
+vid_names = [...]
+
+for vid_name in vid_names:
+    for segment in os.listdir('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/temp_ResNext/'+vid_name):
+        new = np.load('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/temp_ResNext/'+vid_name+'/'+segment)
         old = np.load('/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/Dance/ResNext_Extractions/'+vid_name+'/'+segment)
         print(new, old)
         if np.array_equal(np.array(new), np.array(old)):
