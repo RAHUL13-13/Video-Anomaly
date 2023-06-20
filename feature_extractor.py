@@ -1,21 +1,5 @@
-import sys
-import os
-import json
-import numpy as np
 import cv2
-import torch
-from torch.utils.data import DataLoader
-from torchvision.transforms import transforms
-from numba import cuda
-from tqdm import tqdm
-import gc
-import psutil
-
-p = psutil.Process()
-
-device = torch.device('cuda:0')
-
-sys.path.insert(1, '/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD')
+import os
 
 try:
   import google.colab
@@ -23,184 +7,117 @@ try:
 except:
   IN_COLAB = False
 
-if IN_COLAB:
-    from UnsupervisedVAD.video_dataset import VideoFrameDataset, ImglistToTensor
-    from google.colab.patches import cv2_imshow as cv2_imshow
-    path = './foo/'
-else:
-    from video_dataset import VideoFrameDataset, ImglistToTensor
-    from cv2 import imshow as cv2_imshow
-    path = './'
+def write_path_to_annotation(write_path, frameNo, file):
 
-# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+    global IN_COLAB
 
-# device = cuda.get_current_device()
-# device.reset()
+    classes = {
+        "Normal" : 0,
+        "Abuse" : 1,
+        "Arrest" : 2,
+        "Arson" : 3,
+        "Assault" : 4,
+        "Burglary" : 5,
+        "Explosion" : 6,
+        "Fighting" : 7,
+        "RoadAccidents" : 8,
+        "Robbery" : 9,
+        "Shooting" : 10,
+        "Shoplifting" : 11,
+        "Stealing" : 12,
+        "Vandalism" : 13,
+    }
 
-transfrom = transforms.Compose([
-            ImglistToTensor(),
-            transforms.CenterCrop((256,256)),
-            transforms.Resize((224, 224)),
-            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-            ])
+    if not IN_COLAB:
+        class_name,video_name = write_path.split('/')[3], write_path.split('/')[4]
+
+    else:
+        class_name,video_name = write_path.split('/')[4], write_path.split('/')[5]
+
+    file.write("{}/{} 1 {} {}\n".format(class_name, video_name, frameNo, classes[class_name]))
 
 
+def frame_extractor(path, video, frames_path):
+    """
+    Extracts Frame from path to video
+    Args:
+        Input: Path to video
 
-@profile
-def func():
+        Output: 16 Frames stored into Folder(Foldername: Dataset/Path/)
+    """
 
-    skipped = [931, 1259]
+    class_name = path.split('/')[-1]
 
-    # Number of segments to be processed at one time
-    chunk = 10
-    for vid_num in skipped:
-        
-        path = '/shared/home/v_rahul_pratap_singh/local_scratch/UnsupervisedVAD/'
+    frames_dir = os.path.join(frames_path, f'Frames/{class_name}/{video}')
 
-        vid_address = path+'Dance/all_text/train_'+str(vid_num)+'.txt'
+    if not os.path.exists(frames_dir):
+        os.makedirs(frames_dir)
 
-        if IN_COLAB:
-            file = open('./UnsupervisedVAD/train.txt', 'r')
+    print(f"Path to Video is: {os.path.join(path, video)}")
+
+    capture = cv2.VideoCapture(os.path.join(path, video))
+
+    video_dir = os.path.join(path, video)
+
+    if not os.path.exists(video_dir):
+        os.makedirs(video_dir)
+
+    # Keeping track of Frames
+    frameNo = 0
+    frameCount = 0
+
+    global IN_COLAB
+
+    if IN_COLAB:
+        file = open('./UnsupervisedVAD/train.txt', 'a')
+    else:
+        file = open('./train.txt', 'a')
+
+    while(True):
+
+        success, frame = capture.read() # Success -> if frame read successfully or not
+
+        frameNo += 1
+        frameCount += 1
+        if success:
+            
+            write_path = os.path.join(frames_dir ,'frame_{:05d}.jpg'.format(frameNo))
+            cv2.imwrite(write_path, frame)
         else:
-            file = open(vid_address, 'r')
+            break
 
-        dataset = VideoFrameDataset(path+'/Dataset/Frames/', vid_address, num_segments=1, frames_per_segment=16, 
-                                    imagefile_template='frame_{:05d}.jpg', transform=None, test_mode=False)
-        print(f"dataset loaded for{vid_num}")
-        # [[[][][]n frames][][]...1900]
-        # print(dataset[0])
-        # print(len(dataset), len(dataset[0][0]), len(dataset[0]))
-        # frames = len(dataset[0][0]
 
-        # len dataset[0,0] =8000
-        # num_iterations = 8000/16 
-        # start = 0
-        # segments has 1 len
+    print(f'Number of frames in {video} is {frameCount}')
+    write_path_to_annotation(write_path = str(write_path), frameNo=frameCount, file=file)
+    capture.release()
 
-        num_iterations = len(dataset[0][0])//16
-        
-        start = 0
-        while(start<=num_iterations):
-            segments = [[]] * 1    
-            # print(sample)
 
-            # sample = dataset[0]
-            
-            if ( start+chunk < num_iterations):
-                sample = dataset[0][0][16*start:16*(start+chunk)]
+def video_selector(path):
+    """
+    Selects the video and sends it for frame extraction
+    Input: Path
+    Output: None
+    """
 
-            else:
-                sample = dataset[0][0][16*start:]
-            start += chunk
+    path_dataset = os.path.join(path, 'Datasets') # Change according to location
 
-            frames = sample
-            
-            del sample
-            gc.collect()
 
-            # print(len(frames))
-            # print(frames)
-            segment = []
+    for i in os.listdir(path_dataset):
+        for j in os.listdir(os.path.join(path_dataset, i)):
+            class_dir = os.path.join(path_dataset, i) # Class directory
+            print(os.path.join(class_dir, j))
+            frame_extractor(class_dir, j, path)
 
-            for cluster in range(len(frames)//16):
-                # 16 segment, 0-255 frames, 0 15 ok 16 31....240 255....0:16,  .....[240:]
-                if (cluster == (len(frames)//16)-1):
-                    segment_i = frames[16 * cluster:]
-                
-                else:
-                    segment_i = frames[16 * cluster: 16 * (cluster + 1)]
-                segment.append(segment_i)
 
-            # print(segment)
-            segments[0] = segment
+if not IN_COLAB:
+    path = "./Dataset/"
+else:
+    path = "./Unsupervised/Dataset/"
 
-            del frames
-            del segment
-            gc.collect()
 
-            segments = np.array(segments, dtype = object)
-            # print(f"segments done for{vid_num}")
+# frame_extractor(path, video)
+video_selector(path)
+# print(os.system('pwd'))
 
-            frameSize = (224, 224)
-            vid_tensors=[[]] * 1
+print("Done")
 
-            for segment in range(len(segments)): #get_video
-                lt=[]
-                vid=segments[segment]
-                frameset=np.array(vid, dtype = object)
-
-                for seg_index in range(0,len(frameset)):
-                    #print('seg_index',seg_index)
-                    seg=frameset[seg_index]
-                    l=[]
-                    for k in range(0,len(seg)): #16 frames per segment
-                        #print('frame no.',k)
-                        pil_img=seg[k]
-                        cv_img=np.array(pil_img)
-                        cv_img=cv2.resize(cv_img,(112,112))
-                        #cv2_imshow(cv_img)
-                        #print(cv_img.shape)
-                        l.append(cv_img)
-                
-                    t=tuple(l)
-                    
-                    x = np.stack(t, axis = -1)
-                    y= np.transpose(x, (3,2,1,0)) #tensor for one segment
-                    lt.append(y)
-                    #print('current shape',np.array(vid_tensors[0]).shape,np.array(vid_tensors[1]).shape)
-                vid_tensors[segment]=lt
-                #print(i,len(vid_tensors[i]))
-
-            # print("tensor", vid_num)
-            #cv2.destroyAllWindows()
-            vid_tensors=np.array(vid_tensors, dtype = object)
-
-            data_segments=[]
-
-            for j in range(0,len(vid_tensors)):
-                for k in range(0,len(vid_tensors[j])):
-                    data_segments.append(vid_tensors[j][k])
-            # print(len(data_segments))
-            
-            del vid_tensors
-            del segments
-            gc.collect()
-            print(f"tensor made for{vid_num}")
-
-            # Create json file for feature extractor
-            count=0
-            ls=[]
-            for s in range(0, len(data_segments)):
-                count+=1
-                tens=data_segments[s]
-                op_d_new={'video': tens.tolist()}
-                ls.append(op_d_new)               
-                
-                # print('writing line ',count)
-            # print("json", vid_num)
-            json_object=json.dumps(ls)
-
-            del data_segments
-            del ls
-            gc.collect()
-
-            json_filename = 'sample_'+str(vid_num)+'.json'
-
-            os.path.join(path+'/Dance/sample_jsons', json_filename)
-            with open(path+'/Dance/sample_jsons/'+json_filename, "w") as outfile:
-                outfile.write(json_object)
-            
-            outfile.close()
-            del json_object
-            gc.collect()
-
-            json_path = path+'/Dance/sample_jsons/'+json_filename
-            
-            command =  'python '+path+'video_feature_extractor/extract.py --jsn='+json_path+' --type=3d --batch_size=1 --resnext101_model_path='+path+'resnext101.pth --vid_num='+str(vid_num)
-            os.system(command)
-        
-        print(vid_num)
-
-func()
-
-print(p.memory_info())
