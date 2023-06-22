@@ -13,7 +13,6 @@ for vid_name in vid_names:
 
         print("No Use", segment)
         exit()
-print("all set")
 
 # # old
 # dataset all
